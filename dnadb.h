@@ -79,6 +79,10 @@ class DnaDb{
     /******************************************
     * Private function declarations go here! *
     ******************************************/
-
+    bool m_isOldActivated; // CHECKER IF DATA IS STORED IN OLD
+    int m_quarterChecker; // CHECKS WHICH QUARTER OF REHASHING IS IT ON
+    int m_location; // STORES THE INDEX WHERE THE LAST REHASHING ENDED
+    int m_quarterSize; // STORES THE QUARTER SIZE OF THE HASHTABLE
+    bool isValidLocation(DNA dna);
 };
 #endif

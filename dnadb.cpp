@@ -2,6 +2,42 @@
 #include "dnadb.h"
 DnaDb::DnaDb(int size, hash_fn hash) {
 
+    m_hash = hash;
+    m_currentSize = 0;
+    m_currNumDeleted = 0;
+    m_oldTable = nullptr;
+    m_oldCap = 0;
+    m_oldSize = 0;
+    m_oldNumDeleted = 0;
+    
+    if (size) {
+        
+        if (size > MAXPRIME) {
+            m_currentCap = MAXPRIME;
+        }
+        else if (size < MINPRIME) {
+            m_currentCap = MINPRIME;
+        }
+        else {
+
+            // 2 cases: first, if it isnt a prime number, second, if it is.
+            // if it isnt prime, find a prime which is greater than the immediate number
+            if (isPrime(size)) {
+                m_currentCap = size;
+            }
+            else {
+                m_currentCap = findNextPrime(size);
+            }
+        }
+    }
+
+    m_currentTable = new DNA[m_currentCap];
+    //m_oldTable = new DNA[m_currentCap];
+
+    for (unsigned int i = 0; i < m_currentCap; i++) {
+        m_currentTable[i] = EMPTY;
+        //m_oldTable[i] = EMPTY;
+    }
 }
 
 DnaDb::~DnaDb() {
@@ -10,22 +46,253 @@ DnaDb::~DnaDb() {
 
 bool DnaDb::insert(DNA dna) {
 
+    int index = m_hash(dna.getSequence()) % m_currentCap;
+    bool isInserted = false;
+
+    if (m_currentTable[index] == EMPTY && isValidLocation(dna)) {
+
+        m_currentTable[index] = dna;
+        ++m_currentSize; // SAVING THE COUNT OF DNA DATA INSERTED
+        isInserted = true;
+    }
+    else {
+
+        // COLLISION OCCURED, quadratic probe to the next free location
+        int count = 0;
+        bool isAdded = false;
+        int newIndexHash = m_hash(dna.getSequence()) % m_currentCap; 
+
+        while (!isAdded) {
+
+            index = (newIndexHash + (count * count)) % m_currentCap;
+            if (m_currentTable[index] == EMPTY && isValidLocation(dna)) {
+
+                m_currentTable[index] = dna;
+                ++m_currentSize;
+                isInserted = true;
+                isAdded = true;
+            }
+            ++count;
+        }
+    }
+
+    if (lambda() > 0.5) {
+
+        //rehash the entire table
+        m_isOldActivated = true;
+        m_oldCap = m_currentCap;
+        m_oldSize = m_currentSize;
+        m_oldNumDeleted = m_currNumDeleted;
+
+        m_oldTable = new DNA[m_oldCap];
+
+        for (unsigned int i = 0; i < m_currentCap; i++) {
+            
+            m_oldTable[i] = m_currentTable[i];
+        }
+
+        delete[] m_currentTable;
+        m_currentCap = (m_currentSize - m_currNumDeleted) * 4; //calculate the size
+        m_currentSize = 0; // CHECK THIS JUST INCASE
+        m_currentTable = new DNA[m_currentCap];
+
+        
+        int positionNewTable = 0; // INDEX FOR THE NEW TABLE
+        switch (m_quarterChecker)
+        {
+        case 1:
+            m_location = 0; // INITIALIZING THE LOCATION VARIABLE BECAUSE IS THE FIRST QUARTER OF INITIALIZATION
+            m_quarterSize = ceil(m_oldSize / 4); // STORES THE QUARTER SIZE BASED ON THE TABLE SIZE
+
+            for (; m_location < m_quarterSize; m_location++) {
+
+                if (m_oldTable[m_location].getSequence() != "" && m_oldTable[m_location].getSequence() != DELETEDKEY) {
+
+                    positionNewTable = m_hash(m_oldTable[m_location].getSequence()) % m_currentCap;
+
+                    // CHECK THIS JUST INCASE OF AN ERROR CAUSE I DIDNT INITIALIZE IT WITH THE EMPTY DNA OBJECT
+                    if (m_currentTable[positionNewTable] == EMPTY) {
+
+                        m_currentTable[positionNewTable] = m_oldTable[m_location];
+                        m_oldTable[m_location] = DELETED;
+                        ++m_currentSize;
+                    }
+                    else {
+
+                        int count = 0;
+                        bool isAdded = false;
+                        int newIndexHash = m_hash(m_oldTable[m_location].getSequence()) % m_currentCap;
+
+                        while (!isAdded) {
+
+                            positionNewTable = (newIndexHash + (count * count)) % m_currentCap;
+                            if (m_currentTable[positionNewTable] == EMPTY) {
+
+                                m_currentTable[positionNewTable] = m_oldTable[m_location];
+                                m_oldTable[m_location] = DELETED;
+                                ++m_currentSize;
+                                isAdded = true;
+                            }
+                            ++count;
+                        }
+                    }
+                }
+            }
+
+            ++m_quarterChecker;
+            break;
+
+        case 2:
+            //int positionNewTable = 0;
+
+            for (; m_location < m_quarterSize * m_quarterChecker; m_location++) {
+
+                if (m_oldTable[m_location].getSequence() != "" && m_oldTable[m_location].getSequence() != DELETEDKEY) {
+
+                    positionNewTable = m_hash(m_oldTable[m_location].getSequence()) % m_currentCap;
+                    if (m_currentTable[positionNewTable] == EMPTY) {
+
+                        m_currentTable[positionNewTable] = m_oldTable[m_location];
+                        m_oldTable[m_location] = DELETED;
+                        ++m_currentSize;
+                    }
+                    else {
+
+                        int count = 0;
+                        bool isAdded = false;
+                        int newIndexHash = m_hash(m_oldTable[m_location].getSequence()) % m_currentCap;
+
+                        while (!isAdded) {
+
+                            positionNewTable = (newIndexHash + (count * count)) % m_currentCap;
+                            if (m_currentTable[positionNewTable] == EMPTY) {
+
+                                m_currentTable[positionNewTable] = m_oldTable[m_location];
+                                m_oldTable[m_location] = DELETED;
+                                ++m_currentSize;
+                                isAdded = true;
+                            }
+                            ++count;
+                        }
+                    }
+                }
+            }
+
+            ++m_quarterChecker;
+            break;
+
+        case 3:
+            //int positionNewTable = 0;
+
+            for (; m_location < m_quarterSize + (m_quarterChecker * 3); m_location++) {
+
+                if (m_oldTable[m_location].getSequence() != "" && m_oldTable[m_location].getSequence() != DELETEDKEY) {
+
+                    positionNewTable = m_hash(m_oldTable[m_location].getSequence()) % m_currentCap;
+                    if (m_currentTable[positionNewTable] == EMPTY) {
+
+                        m_currentTable[positionNewTable] = m_oldTable[m_location];
+                        m_oldTable[m_location] = DELETED;
+                        ++m_currentSize;
+                    }
+                    else {
+
+                        int count = 0;
+                        bool isAdded = false;
+                        int newIndexHash = m_hash(m_oldTable[m_location].getSequence()) % m_currentCap;
+
+                        while (!isAdded) {
+
+                            positionNewTable = (newIndexHash + (count * count)) % m_currentCap;
+                            if (m_currentTable[positionNewTable] == EMPTY) {
+
+                                m_currentTable[positionNewTable] = m_oldTable[m_location];
+                                m_oldTable[m_location] = DELETED;
+                                ++m_currentSize;
+                                isAdded = true;
+                            }
+                            ++count;
+                        }
+                    }
+                }
+            }
+
+            ++m_quarterChecker;
+            break;
+
+        case 4:
+            //int positionNewTable = 0;
+
+            for (; m_location < m_oldCap; m_location++) {
+
+                if (m_oldTable[m_location].getSequence() != "" && m_oldTable[m_location].getSequence() != DELETEDKEY) {
+
+                    positionNewTable = m_hash(m_oldTable[m_location].getSequence()) % m_currentCap;
+                    if (m_currentTable[positionNewTable] == EMPTY) {
+
+                        m_currentTable[positionNewTable] = m_oldTable[m_location];
+                        m_oldTable[m_location] = DELETED;
+                        ++m_currentSize;
+                    }
+                    else {
+
+                        int count = 0;
+                        bool isAdded = false;
+                        int newIndexHash = m_hash(m_oldTable[m_location].getSequence()) % m_currentCap;
+
+                        while (!isAdded) {
+
+                            positionNewTable = (newIndexHash + (count * count)) % m_currentCap;
+                            if (m_currentTable[positionNewTable] == EMPTY) {
+
+                                m_currentTable[positionNewTable] = m_oldTable[m_location];
+                                m_oldTable[m_location] = DELETED;
+                                ++m_currentSize;
+                                isAdded = true;
+                            }
+                            ++count;
+                        }
+                    }
+                }
+            }
+
+            delete[] m_oldTable;
+            m_quarterChecker = 0;
+            break;
+
+        default:
+            break;
+        }
+
+    }
+
+    //m_currentTable = new DNA(dna);
+    if (isInserted) {
+        return true;
+    }
+    return false;
 }
 
 bool DnaDb::remove(DNA dna) {
 
+    return false;
 }
 
 DNA DnaDb::getDNA(string sequence, int location) {
 
+    // quadratic probe to find the object
+    DNA p;
+    return p;
 }
 
 float DnaDb::lambda() const {
 
+    return (m_currentSize / m_currentCap);
 }
 
 float DnaDb::deletedRatio() const {
 
+    return (m_currNumDeleted / m_currentCap);
 }
 
 void DnaDb::dump() const {
@@ -114,4 +381,15 @@ ostream& operator<<(ostream& sout, const DNA& dna) {
 // To test inequality we may negate the results of this operator.
 bool operator==(const DNA& lhs, const DNA& rhs) {
     return ((lhs.m_sequence == rhs.m_sequence) && (lhs.m_location == rhs.m_location));
+}
+
+bool DnaDb::isValidLocation(DNA dna) {
+
+    if (dna.getLocId() >= MINLOCID && dna.getLocId() <= MAXLOCID) {
+
+        return true;
+    }
+    else {
+        return false;
+    }
 }
