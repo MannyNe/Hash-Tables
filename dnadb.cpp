@@ -102,7 +102,7 @@ bool DnaDb::insert(DNA dna) {
         {
         case 1:
             m_location = 0; // INITIALIZING THE LOCATION VARIABLE BECAUSE IS THE FIRST QUARTER OF INITIALIZATION
-            m_quarterSize = ceil(m_oldSize / 4); // STORES THE QUARTER SIZE BASED ON THE TABLE SIZE
+            m_quarterSize = int(ceil(m_oldSize / 4)); // STORES THE QUARTER SIZE BASED ON THE TABLE SIZE
 
             for (; m_location < m_quarterSize; m_location++) {
 
@@ -281,8 +281,97 @@ bool DnaDb::remove(DNA dna) {
 DNA DnaDb::getDNA(string sequence, int location) {
 
     // quadratic probe to find the object
-    DNA p;
-    return p;
+    if (m_isOldActivated) {
+
+        int index = m_hash(sequence) % m_currentCap;
+        if (m_currentTable[index].getSequence() == "" && m_oldTable[index].getSequence() ==  "") {
+
+            return EMPTY;
+        }
+
+        if (m_currentTable[index].getSequence() == sequence && m_currentTable[index].getLocId() == location) {
+
+            return m_currentTable[index];
+        }
+
+        else if (m_oldTable[index].getSequence() == sequence && m_oldTable[index].getLocId() == location) {
+
+            return m_oldTable[index];
+        }
+
+        else {
+
+            int count = 0;
+            bool isFinished = false;
+            int newIndexHash = m_hash(sequence) % m_currentCap;
+
+            while (!isFinished) {
+
+                index = (newIndexHash + (count * count)) % m_currentCap;
+                if (m_currentTable[index].getSequence() == "" && m_oldTable[index].getSequence() == "") {
+
+                    isFinished = true;
+                    return EMPTY;
+                }
+                else {
+
+                    if (m_currentTable[index].getSequence() == sequence && m_currentTable[index].getLocId() == location) {
+
+                        isFinished = true;
+                        return m_currentTable[index];
+                    }
+
+                    if (m_oldTable[index].getSequence() == sequence && m_oldTable[index].getLocId() == location) {
+
+                        isFinished = true;
+                        return m_oldTable[index];
+                    }
+
+                    ++count;
+                }
+            }
+        }
+    }
+    else {
+
+        int index = m_hash(sequence) % m_currentCap;
+        if (m_currentTable[index].getSequence() == "") {
+
+            return EMPTY;
+        }
+
+        if (m_currentTable[index].getSequence() == sequence && m_currentTable[index].getLocId() == location) {
+
+            return m_currentTable[index];
+        }
+
+        else {
+
+            int count = 0;
+            bool isFinished = false;
+            int newIndexHash = m_hash(sequence) % m_currentCap;
+
+            while (!isFinished) {
+
+                index = (newIndexHash + (count * count)) % m_currentCap;
+                if (m_currentTable[index].getSequence() == "") {
+
+                    isFinished = true;
+                    return EMPTY;
+                }
+                else {
+
+                    if (m_currentTable[index].getSequence() == sequence && m_currentTable[index].getLocId() == location) {
+
+                        isFinished = true;
+                        return m_currentTable[index];
+                    }
+
+                    ++count;
+                }
+            }
+        }
+    }
 }
 
 float DnaDb::lambda() const {
