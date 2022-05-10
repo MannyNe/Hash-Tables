@@ -32,16 +32,18 @@ DnaDb::DnaDb(int size, hash_fn hash) {
     }
 
     m_currentTable = new DNA[m_currentCap];
-    //m_oldTable = new DNA[m_currentCap];
 
     for (unsigned int i = 0; i < m_currentCap; i++) {
         m_currentTable[i] = EMPTY;
-        //m_oldTable[i] = EMPTY;
     }
 }
 
 DnaDb::~DnaDb() {
 
+    delete[] m_currentTable;
+    m_currentTable = nullptr;
+    delete[] m_oldTable;
+    m_oldTable = nullptr;
 }
 
 bool DnaDb::insert(DNA dna) {
@@ -78,23 +80,29 @@ bool DnaDb::insert(DNA dna) {
 
     if (lambda() > 0.5) {
 
-        //rehash the entire table
-        m_isOldActivated = true;
-        m_oldCap = m_currentCap;
-        m_oldSize = m_currentSize;
-        m_oldNumDeleted = m_currNumDeleted;
+        if (!m_isOldActivated) {
 
-        m_oldTable = new DNA[m_oldCap];
+            //rehash the entire table
+            m_isOldActivated = true;
+            m_hashCompleted = false;
+            m_rehashTriggeredLambda = true;
+            m_oldCap = m_currentCap;
+            m_oldSize = m_currentSize;
+            m_oldNumDeleted = m_currNumDeleted;
 
-        for (unsigned int i = 0; i < m_currentCap; i++) {
-            
-            m_oldTable[i] = m_currentTable[i];
+            m_oldTable = new DNA[m_oldCap];
+
+            for (unsigned int i = 0; i < m_currentCap; i++) {
+
+                m_oldTable[i] = m_currentTable[i];
+            }
+
+            delete[] m_currentTable;
+            m_currentCap = findNextPrime((m_currentSize - m_currNumDeleted) * 4); //calculate the size
+            m_currentSize = 0; // CHECK THIS JUST INCASE
+            m_currentTable = new DNA[m_currentCap];
+            ++m_quarterChecker;
         }
-
-        delete[] m_currentTable;
-        m_currentCap = (m_currentSize - m_currNumDeleted) * 4; //calculate the size
-        m_currentSize = 0; // CHECK THIS JUST INCASE
-        m_currentTable = new DNA[m_currentCap];
 
         
         int positionNewTable = 0; // INDEX FOR THE NEW TABLE
@@ -102,7 +110,7 @@ bool DnaDb::insert(DNA dna) {
         {
         case 1:
             m_location = 0; // INITIALIZING THE LOCATION VARIABLE BECAUSE IS THE FIRST QUARTER OF INITIALIZATION
-            m_quarterSize = int(ceil(m_oldSize / 4)); // STORES THE QUARTER SIZE BASED ON THE TABLE SIZE
+            m_quarterSize = floor(m_oldSize / 4); // STORES THE QUARTER SIZE BASED ON THE TABLE SIZE
 
             for (; m_location < m_quarterSize; m_location++) {
 
@@ -115,6 +123,7 @@ bool DnaDb::insert(DNA dna) {
 
                         m_currentTable[positionNewTable] = m_oldTable[m_location];
                         m_oldTable[m_location] = DELETED;
+                        ++m_oldNumDeleted;
                         ++m_currentSize;
                     }
                     else {
@@ -131,6 +140,7 @@ bool DnaDb::insert(DNA dna) {
                                 m_currentTable[positionNewTable] = m_oldTable[m_location];
                                 m_oldTable[m_location] = DELETED;
                                 ++m_currentSize;
+                                ++m_oldNumDeleted;
                                 isAdded = true;
                             }
                             ++count;
@@ -154,6 +164,7 @@ bool DnaDb::insert(DNA dna) {
 
                         m_currentTable[positionNewTable] = m_oldTable[m_location];
                         m_oldTable[m_location] = DELETED;
+                        ++m_oldNumDeleted;
                         ++m_currentSize;
                     }
                     else {
@@ -169,6 +180,7 @@ bool DnaDb::insert(DNA dna) {
 
                                 m_currentTable[positionNewTable] = m_oldTable[m_location];
                                 m_oldTable[m_location] = DELETED;
+                                ++m_oldNumDeleted;
                                 ++m_currentSize;
                                 isAdded = true;
                             }
@@ -184,7 +196,7 @@ bool DnaDb::insert(DNA dna) {
         case 3:
             //int positionNewTable = 0;
 
-            for (; m_location < m_quarterSize + (m_quarterChecker * 3); m_location++) {
+            for (; m_location < m_quarterSize * 3; m_location++) {
 
                 if (m_oldTable[m_location].getSequence() != "" && m_oldTable[m_location].getSequence() != DELETEDKEY) {
 
@@ -193,6 +205,7 @@ bool DnaDb::insert(DNA dna) {
 
                         m_currentTable[positionNewTable] = m_oldTable[m_location];
                         m_oldTable[m_location] = DELETED;
+                        ++m_oldNumDeleted;
                         ++m_currentSize;
                     }
                     else {
@@ -208,6 +221,7 @@ bool DnaDb::insert(DNA dna) {
 
                                 m_currentTable[positionNewTable] = m_oldTable[m_location];
                                 m_oldTable[m_location] = DELETED;
+                                ++m_oldNumDeleted;
                                 ++m_currentSize;
                                 isAdded = true;
                             }
@@ -232,6 +246,7 @@ bool DnaDb::insert(DNA dna) {
 
                         m_currentTable[positionNewTable] = m_oldTable[m_location];
                         m_oldTable[m_location] = DELETED;
+                        ++m_oldNumDeleted;
                         ++m_currentSize;
                     }
                     else {
@@ -247,6 +262,7 @@ bool DnaDb::insert(DNA dna) {
 
                                 m_currentTable[positionNewTable] = m_oldTable[m_location];
                                 m_oldTable[m_location] = DELETED;
+                                ++m_oldNumDeleted;
                                 ++m_currentSize;
                                 isAdded = true;
                             }
@@ -257,7 +273,10 @@ bool DnaDb::insert(DNA dna) {
             }
 
             delete[] m_oldTable;
+            m_oldTable = nullptr;
             m_quarterChecker = 0;
+            m_isOldActivated = false;
+            m_hashCompleted = true;
             break;
 
         default:
@@ -275,58 +294,48 @@ bool DnaDb::insert(DNA dna) {
 
 bool DnaDb::remove(DNA dna) {
 
-    return false;
-}
+    int index = m_hash(dna.getSequence()) % m_currentCap;
+    bool isDeleted = false;
 
-DNA DnaDb::getDNA(string sequence, int location) {
-
-    // quadratic probe to find the object
     if (m_isOldActivated) {
 
-        int index = m_hash(sequence) % m_currentCap;
-        if (m_currentTable[index].getSequence() == "" && m_oldTable[index].getSequence() ==  "") {
+        if (m_currentTable[index] == dna) {
 
-            return EMPTY;
+            m_currentTable[index] = DELETED;
+            ++m_currNumDeleted; // SAVING THE COUNT OF DNA DATA DELETED
+            isDeleted = true;
         }
+        else if (m_oldTable[index] == dna) {
 
-        if (m_currentTable[index].getSequence() == sequence && m_currentTable[index].getLocId() == location) {
-
-            return m_currentTable[index];
+            m_oldTable[index] = DELETED;
+            ++m_oldNumDeleted; // SAVING THE COUNT OF DNA DATA DELETED
+            isDeleted = true;
         }
-
-        else if (m_oldTable[index].getSequence() == sequence && m_oldTable[index].getLocId() == location) {
-
-            return m_oldTable[index];
-        }
-
         else {
 
+            // COLLISION OCCURED, quadratic probe to the next free location
             int count = 0;
-            bool isFinished = false;
-            int newIndexHash = m_hash(sequence) % m_currentCap;
+            bool isRemoved = false;
+            int newIndexHash = m_hash(dna.getSequence()) % m_currentCap;
 
-            while (!isFinished) {
+            while (!isRemoved) {
 
                 index = (newIndexHash + (count * count)) % m_currentCap;
-                if (m_currentTable[index].getSequence() == "" && m_oldTable[index].getSequence() == "") {
+                if (m_currentTable[index] == dna) {
 
-                    isFinished = true;
-                    return EMPTY;
+                    m_currentTable[index] = DELETED;
+                    ++m_currNumDeleted;
+                    isDeleted = true;
+                    isRemoved = true;
+                }
+                else if (m_oldTable[index] == dna) {
+
+                    m_oldTable[index] = DELETED;
+                    ++m_oldNumDeleted; // SAVING THE COUNT OF DNA DATA DELETED
+                    isDeleted = true;
+                    isRemoved = true;
                 }
                 else {
-
-                    if (m_currentTable[index].getSequence() == sequence && m_currentTable[index].getLocId() == location) {
-
-                        isFinished = true;
-                        return m_currentTable[index];
-                    }
-
-                    if (m_oldTable[index].getSequence() == sequence && m_oldTable[index].getLocId() == location) {
-
-                        isFinished = true;
-                        return m_oldTable[index];
-                    }
-
                     ++count;
                 }
             }
@@ -334,65 +343,387 @@ DNA DnaDb::getDNA(string sequence, int location) {
     }
     else {
 
-        int index = m_hash(sequence) % m_currentCap;
-        if (m_currentTable[index].getSequence() == "") {
+        if (m_currentTable[index] == dna) {
 
-            return EMPTY;
+            m_currentTable[index] = DELETED;
+            ++m_currNumDeleted; // SAVING THE COUNT OF DNA DATA DELETED
+            isDeleted = true;
         }
-
-        if (m_currentTable[index].getSequence() == sequence && m_currentTable[index].getLocId() == location) {
-
-            return m_currentTable[index];
-        }
-
         else {
 
+            // COLLISION OCCURED, quadratic probe to the next free location
             int count = 0;
-            bool isFinished = false;
-            int newIndexHash = m_hash(sequence) % m_currentCap;
+            bool isRemoved = false;
+            int newIndexHash = m_hash(dna.getSequence()) % m_currentCap;
 
-            while (!isFinished) {
+            while (!isRemoved) {
 
                 index = (newIndexHash + (count * count)) % m_currentCap;
-                if (m_currentTable[index].getSequence() == "") {
+                if (m_currentTable[index] == dna) {
 
-                    isFinished = true;
-                    return EMPTY;
+                    m_currentTable[index] = DELETED;
+                    ++m_currNumDeleted;
+                    isDeleted = true;
+                    isRemoved = true;
                 }
-                else {
+                ++count;
+            }
+        }
+    }
 
-                    if (m_currentTable[index].getSequence() == sequence && m_currentTable[index].getLocId() == location) {
+    if (deletedRatio() > 0.8) {
+
+        if (!m_isOldActivated) {
+
+            //rehash the entire table
+            m_isOldActivated = true;
+            m_hashCompleted = false;
+            m_rehashTriggeredRemove = true;
+            m_oldCap = m_currentCap;
+            m_oldSize = m_currentSize;
+            m_oldNumDeleted = m_currNumDeleted;
+
+            m_oldTable = new DNA[m_oldCap];
+
+            for (unsigned int i = 0; i < m_currentCap; i++) {
+
+                m_oldTable[i] = m_currentTable[i];
+            }
+
+            delete[] m_currentTable;
+            m_currentCap = findNextPrime((m_currentSize - m_currNumDeleted) * 4); //calculate the size
+            m_currentSize = 0; // CHECK THIS JUST INCASE
+            m_currentTable = new DNA[m_currentCap];
+            ++m_quarterChecker;
+        }
+
+
+        int positionNewTable = 0; // INDEX FOR THE NEW TABLE
+        switch (m_quarterChecker)
+        {
+        case 1:
+            m_location = 0; // INITIALIZING THE LOCATION VARIABLE BECAUSE IS THE FIRST QUARTER OF INITIALIZATION
+            m_quarterSize = floor(m_oldSize / 4); // STORES THE QUARTER SIZE BASED ON THE TABLE SIZE
+
+            for (; m_location < m_quarterSize; m_location++) {
+
+                if (m_oldTable[m_location].getSequence() != "" && m_oldTable[m_location].getSequence() != DELETEDKEY) {
+
+                    positionNewTable = m_hash(m_oldTable[m_location].getSequence()) % m_currentCap;
+
+                    // CHECK THIS JUST INCASE OF AN ERROR CAUSE I DIDNT INITIALIZE IT WITH THE EMPTY DNA OBJECT
+                    if (m_currentTable[positionNewTable] == EMPTY) {
+
+                        m_currentTable[positionNewTable] = m_oldTable[m_location];
+                        m_oldTable[m_location] = DELETED;
+                        //++m_oldNumDeleted;
+                        ++m_currentSize;
+                    }
+                    else {
+
+                        int count = 0;
+                        bool isAdded = false;
+                        int newIndexHash = m_hash(m_oldTable[m_location].getSequence()) % m_currentCap;
+
+                        while (!isAdded) {
+
+                            positionNewTable = (newIndexHash + (count * count)) % m_currentCap;
+                            if (m_currentTable[positionNewTable] == EMPTY) {
+
+                                m_currentTable[positionNewTable] = m_oldTable[m_location];
+                                m_oldTable[m_location] = DELETED;
+                                //++m_oldNumDeleted;
+                                ++m_currentSize;
+                                isAdded = true;
+                            }
+                            ++count;
+                        }
+                    }
+                }
+            }
+
+            ++m_quarterChecker;
+            m_hashCompleted = true;
+            break;
+
+        case 2:
+            //int positionNewTable = 0;
+
+            for (; m_location < m_quarterSize * m_quarterChecker; m_location++) {
+
+                if (m_oldTable[m_location].getSequence() != "" && m_oldTable[m_location].getSequence() != DELETEDKEY) {
+
+                    positionNewTable = m_hash(m_oldTable[m_location].getSequence()) % m_currentCap;
+                    if (m_currentTable[positionNewTable] == EMPTY) {
+
+                        m_currentTable[positionNewTable] = m_oldTable[m_location];
+                        m_oldTable[m_location] = DELETED;
+                        //++m_oldNumDeleted;
+                        ++m_currentSize;
+                    }
+                    else {
+
+                        int count = 0;
+                        bool isAdded = false;
+                        int newIndexHash = m_hash(m_oldTable[m_location].getSequence()) % m_currentCap;
+
+                        while (!isAdded) {
+
+                            positionNewTable = (newIndexHash + (count * count)) % m_currentCap;
+                            if (m_currentTable[positionNewTable] == EMPTY) {
+
+                                m_currentTable[positionNewTable] = m_oldTable[m_location];
+                                m_oldTable[m_location] = DELETED;
+                                //++m_oldNumDeleted;
+                                ++m_currentSize;
+                                isAdded = true;
+                            }
+                            ++count;
+                        }
+                    }
+                }
+            }
+
+            ++m_quarterChecker;
+            m_hashCompleted = true;
+            break;
+
+        case 3:
+            //int positionNewTable = 0;
+
+            for (; m_location < m_quarterSize * 3; m_location++) {
+
+                if (m_oldTable[m_location].getSequence() != "" && m_oldTable[m_location].getSequence() != DELETEDKEY) {
+
+                    positionNewTable = m_hash(m_oldTable[m_location].getSequence()) % m_currentCap;
+                    if (m_currentTable[positionNewTable] == EMPTY) {
+
+                        m_currentTable[positionNewTable] = m_oldTable[m_location];
+                        m_oldTable[m_location] = DELETED;
+                        //++m_oldNumDeleted;
+                        ++m_currentSize;
+                    }
+                    else {
+
+                        int count = 0;
+                        bool isAdded = false;
+                        int newIndexHash = m_hash(m_oldTable[m_location].getSequence()) % m_currentCap;
+
+                        while (!isAdded) {
+
+                            positionNewTable = (newIndexHash + (count * count)) % m_currentCap;
+                            if (m_currentTable[positionNewTable] == EMPTY) {
+
+                                m_currentTable[positionNewTable] = m_oldTable[m_location];
+                                m_oldTable[m_location] = DELETED;
+                                //++m_oldNumDeleted;
+                                ++m_currentSize;
+                                isAdded = true;
+                            }
+                            ++count;
+                        }
+                    }
+                }
+            }
+
+            ++m_quarterChecker;
+            m_hashCompleted = true;
+            break;
+
+        case 4:
+            //int positionNewTable = 0;
+
+            for (; m_location < m_oldCap; m_location++) {
+
+                if (m_oldTable[m_location].getSequence() != "" && m_oldTable[m_location].getSequence() != DELETEDKEY) {
+
+                    positionNewTable = m_hash(m_oldTable[m_location].getSequence()) % m_currentCap;
+                    if (m_currentTable[positionNewTable] == EMPTY) {
+
+                        m_currentTable[positionNewTable] = m_oldTable[m_location];
+                        m_oldTable[m_location] = DELETED;
+                        //++m_oldNumDeleted;
+                        ++m_currentSize;
+                    }
+                    else {
+
+                        int count = 0;
+                        bool isAdded = false;
+                        int newIndexHash = m_hash(m_oldTable[m_location].getSequence()) % m_currentCap;
+
+                        while (!isAdded) {
+
+                            positionNewTable = (newIndexHash + (count * count)) % m_currentCap;
+                            if (m_currentTable[positionNewTable] == EMPTY) {
+
+                                m_currentTable[positionNewTable] = m_oldTable[m_location];
+                                m_oldTable[m_location] = DELETED;
+                                ++m_currentSize;
+                                //++m_oldNumDeleted;
+                                isAdded = true;
+                            }
+                            ++count;
+                        }
+                    }
+                }
+            }
+
+            delete[] m_oldTable;
+            m_oldTable = nullptr;
+            m_quarterChecker = 0;
+            m_isOldActivated = false;
+            m_hashCompleted = true;
+            break;
+
+        default:
+            break;
+        }
+
+    }
+
+    //m_currentTable = new DNA(dna);
+    if (isDeleted) {
+        return true;
+    }
+    return false;
+}
+
+DNA DnaDb::getDNA(string sequence, int location) {
+
+    // quadratic probe to find the object
+    if (sequence == "") {
+
+        return EMPTY;
+    }
+    else {
+
+        if (m_isOldActivated) {
+
+            int index = m_hash(sequence) % m_currentCap;
+            if (m_currentTable[index].getSequence() == "" && m_oldTable[index].getSequence() == "") {
+
+                return EMPTY;
+            }
+
+            if (m_currentTable[index].getSequence() == sequence && m_currentTable[index].getLocId() == location) {
+
+                return m_currentTable[index];
+            }
+
+            else if (m_oldTable[index].getSequence() == sequence && m_oldTable[index].getLocId() == location) {
+
+                return m_oldTable[index];
+            }
+
+            else {
+
+                int count = 0;
+                bool isFinished = false;
+                int newIndexHash = m_hash(sequence) % m_currentCap;
+
+                while (!isFinished) {
+
+                    index = (newIndexHash + (count * count)) % m_currentCap;
+                    if (m_currentTable[index].getSequence() == "" && m_oldTable[index].getSequence() == "") {
 
                         isFinished = true;
-                        return m_currentTable[index];
+                        return EMPTY;
                     }
+                    else {
 
-                    ++count;
+                        if (m_currentTable[index].getSequence() == sequence && m_currentTable[index].getLocId() == location) {
+
+                            isFinished = true;
+                            return m_currentTable[index];
+                        }
+
+                        if (m_oldTable[index].getSequence() == sequence && m_oldTable[index].getLocId() == location) {
+
+                            isFinished = true;
+                            return m_oldTable[index];
+                        }
+
+                        ++count;
+                    }
+                }
+            }
+        }
+        else {
+
+            int index = m_hash(sequence) % m_currentCap;
+            if (m_currentTable[index].getSequence() == "") {
+
+                return EMPTY;
+            }
+
+            if (m_currentTable[index].getSequence() == sequence && m_currentTable[index].getLocId() == location) {
+
+                return m_currentTable[index];
+            }
+
+            else {
+
+                int count = 0;
+                bool isFinished = false;
+                int newIndexHash = m_hash(sequence) % m_currentCap;
+
+                while (!isFinished) {
+
+                    index = (newIndexHash + (count * count)) % m_currentCap;
+                    if (m_currentTable[index].getSequence() == "") {
+
+                        isFinished = true;
+                        return EMPTY;
+                    }
+                    else {
+
+                        if (m_currentTable[index].getSequence() == sequence && m_currentTable[index].getLocId() == location) {
+
+                            isFinished = true;
+                            return m_currentTable[index];
+                        }
+
+                        ++count;
+                    }
                 }
             }
         }
     }
+
+    return EMPTY;
 }
 
 float DnaDb::lambda() const {
 
-    return (m_currentSize / m_currentCap);
+    if (m_isOldActivated) {
+
+        float loadFactor = (float)m_oldSize / (float)m_oldCap;
+        return loadFactor;
+    }
+    float loadFactor = (float)m_currentSize / (float)m_currentCap;
+    return loadFactor;
 }
 
 float DnaDb::deletedRatio() const {
 
-    return (m_currNumDeleted / m_currentCap);
+    if (m_isOldActivated) {
+
+        float loadFactor = (float)m_oldNumDeleted / (float)m_oldSize;
+        return loadFactor;
+    }
+    float deleteFactor = (float)m_currNumDeleted / (float)m_currentSize;
+    return deleteFactor;
 }
 
 void DnaDb::dump() const {
     cout << "Dump for current table: " << endl;
     if (m_currentTable != nullptr)
-        for (int i = 0; i < m_currentCap; i++) {
+        for (unsigned int i = 0; i < m_currentCap; i++) {
             cout << "[" << i << "] : " << m_currentTable[i] << endl;
         }
     cout << "Dump for old table: " << endl;
     if (m_oldTable != nullptr)
-        for (int i = 0; i < m_oldCap; i++) {
+        for (unsigned int i = 0; i < m_oldCap; i++) {
             cout << "[" << i << "] : " << m_oldTable[i] << endl;
         }
 }

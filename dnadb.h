@@ -81,8 +81,11 @@ class DnaDb{
     ******************************************/
     bool m_isOldActivated; // CHECKER IF DATA IS STORED IN OLD
     int m_quarterChecker; // CHECKS WHICH QUARTER OF REHASHING IS IT ON
-    int m_location; // STORES THE INDEX WHERE THE LAST REHASHING ENDED
-    int m_quarterSize; // STORES THE QUARTER SIZE OF THE HASHTABLE
+    unsigned int m_location; // STORES THE INDEX WHERE THE LAST REHASHING ENDED
+    unsigned int m_quarterSize; // STORES THE QUARTER SIZE OF THE HASHTABLE
+    bool m_rehashTriggeredLambda; // CHECKER IF THE REHASHING GETS TRIGGERED FROM LAMBDA
+    bool m_rehashTriggeredRemove; // CHECKER IF THE REHASHING GETS TRIGGERED FROM REMOVE RATIO
+    bool m_hashCompleted; // CHECKER IF TABLE GOT COMPLETLEY HASHED (LAMBDA OR REMOVE)
     bool isValidLocation(DNA dna);
 };
 #endif
